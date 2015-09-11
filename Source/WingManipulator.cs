@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEngine;
 using System.Reflection;
 
-public class WingManipulator : PartModule, IPartCostModifier
+public class WingManipulator : PartModule, IPartCostModifier, IPartMassModifier
 {
     // PartModule Dimensions
     [KSPField]
@@ -626,6 +626,11 @@ public class WingManipulator : PartModule, IPartCostModifier
         return wingCost;
     }
 
+    public float GetModuleMass(float defaultMass)
+    {
+        return part.mass - part.partInfo.partPrefab.mass;
+    }
+
     public void UpdatePositions()
     {
         cachedrootThicknessMod = rootThicknessMod;
@@ -914,7 +919,7 @@ public class WingManipulator : PartModule, IPartCostModifier
     {
         if (this.part.parent == null || !IsAttached || state == 0)
             return;
-        
+
         float depth = EditorCamera.Instance.camera.WorldToScreenPoint(state != 3 ? Tip.position : Root.position).z; // distance of tip transform from camera
         Vector3 diff = (state == 1 ? moveSpeed : scaleSpeed * 20) * depth * (Input.mousePosition - lastMousePos) / 4500;
         lastMousePos = Input.mousePosition;
