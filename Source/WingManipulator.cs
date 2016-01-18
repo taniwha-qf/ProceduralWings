@@ -67,7 +67,7 @@ namespace pWings
         public float costDensityControl = 6500f;
 
         // Commong config
-        public static bool loadedConfig = false;
+        public static bool loadedConfig;
         public static KeyCode keyTranslation = KeyCode.G;
         public static KeyCode keyTipScale = KeyCode.T;
         public static KeyCode keyRootScale = KeyCode.R;
@@ -98,10 +98,10 @@ namespace pWings
         private bool justDetached = false;
 
         // Internal Fields
-        [KSPField(guiActiveEditor = true, guiName = "RootThickness", isPersistant = true, guiUnits = "%"), UI_FloatRange(minValue = 0.1f, maxValue = 5f, stepIncrement = 0.02f)]
+        [KSPField(guiActiveEditor = true, guiName = "Root Thickness", isPersistant = true, guiUnits = "%"), UI_FloatRange(minValue = 0.1f, maxValue = 5f, stepIncrement = 0.02f)]
         public float rootThicknessMod = 1f;
 
-        [KSPField(guiActiveEditor = true, guiName = "TipThickness", isPersistant = true, guiUnits = "%"), UI_FloatRange(minValue = 0.1f, maxValue = 5f, stepIncrement = 0.02f)]
+        [KSPField(guiActiveEditor = true, guiName = "Tip Thickness", isPersistant = true, guiUnits = "%"), UI_FloatRange(minValue = 0.1f, maxValue = 5f, stepIncrement = 0.02f)]
         public float tipThicknessMod = 1f;
 
         [KSPField]
@@ -213,6 +213,7 @@ namespace pWings
                 return;
 
             ++fuelSelectedTankSetup;
+            
 
             if (fuelSelectedTankSetup >= StaticWingGlobals.wingTankConfigurations.Count)
                 fuelSelectedTankSetup = 0;
@@ -466,41 +467,6 @@ namespace pWings
 
         #endregion
 
-        #region configuration
-
-        // Load shit from a config file
-        // Cribbed from FAR, with thanks to ferram4
-        public void LoadConfiguration()
-        {
-            if (loadedConfig)
-                return;
-
-            foreach (ConfigNode node in GameDatabase.Instance.GetConfigNodes("PWingsSettings"))
-            {
-                if (node == null)
-                    continue;
-
-                if (node.HasValue("keyTranslation"))
-                    keyTranslation = (KeyCode)Enum.Parse(typeof(KeyCode), node.GetValue("keyTranslation"), true);
-
-                if (node.HasValue("keyTipScale"))
-                    keyTipScale = (KeyCode)Enum.Parse(typeof(KeyCode), node.GetValue("keyTipScale"), true);
-
-                if (node.HasValue("keyRootScale"))
-                    keyRootScale = (KeyCode)Enum.Parse(typeof(KeyCode), node.GetValue("keyRootScale"), true);
-
-                if (node.HasValue("moveSpeed"))
-                    float.TryParse(node.GetValue("moveSpeed"), out moveSpeed);
-
-                if (node.HasValue("scaleSpeed"))
-                    float.TryParse(node.GetValue("scaleSpeed"), out scaleSpeed);
-            }
-
-            loadedConfig = true;
-        }
-
-        #endregion
-
         #region aerodynamics
 
         // Gather the Cl of all our children for connection strength calculations.
@@ -554,7 +520,7 @@ namespace pWings
 
             MAC = ((double)tipScale.x + (double)rootScale.x + 2.0) * (double)modelChordLenght / 2.0;
 
-            midChordSweep = (MathD.Rad2Deg * Math.Atan(((double)Root.localPosition.x - (double)tipPosition.x) / b_2));
+            midChordSweep = (Rad2Deg * Math.Atan(((double)Root.localPosition.x - (double)tipPosition.x) / b_2));
 
             taperRatio = ((double)tipScale.x + 1.0) / ((double)rootScale.x + 1.0);
 
@@ -562,11 +528,11 @@ namespace pWings
 
             aspectRatio = 2.0 * b_2 / MAC;
 
-            ArSweepScale = Math.Pow(aspectRatio / MathD.Cos(MathD.Deg2Rad * midChordSweep), 2.0) + 4.0;
+            ArSweepScale = Math.Pow(aspectRatio / Math.Cos(Deg2Rad * midChordSweep), 2.0) + 4.0;
             ArSweepScale = 2.0 + Math.Sqrt(ArSweepScale);
-            ArSweepScale = (2.0 * MathD.PI) / ArSweepScale * aspectRatio;
+            ArSweepScale = (2.0 * Math.PI) / ArSweepScale * aspectRatio;
 
-            wingMass = MathD.Clamp((double)massFudgeNumber * surfaceArea * ((ArSweepScale * 2.0) / (3.0 + ArSweepScale)) * ((1.0 + taperRatio) / 2), 0.01, double.MaxValue);
+            wingMass = Clamp((double)massFudgeNumber * surfaceArea * ((ArSweepScale * 2.0) / (3.0 + ArSweepScale)) * ((1.0 + taperRatio) / 2), 0.01, double.MaxValue);
 
             Cd = (double)dragBaseValue / ArSweepScale * (double)dragMultiplier;
 
@@ -575,7 +541,7 @@ namespace pWings
             //print("Gather Children");
             GatherChildrenCl();
 
-            connectionForce = MathD.Round(MathD.Clamp(MathD.Sqrt(Cl + ChildrenCl) * (double)connectionFactor, (double)connectionMinimum, double.MaxValue));
+            connectionForce = Math.Round(Clamp(Math.Sqrt(Cl + ChildrenCl) * (double)connectionFactor, (double)connectionMinimum, double.MaxValue), 0);
 
             // Values always set
             if (isWing)
@@ -954,12 +920,6 @@ namespace pWings
 
         #region PartModule
 
-        public override void OnAwake()
-        {
-            base.OnAwake();
-            LoadConfiguration();
-        }
-
         private void Setup(bool doInteraction)
         {
             FARactive = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("FerramAerospaceResearch", StringComparison.InvariantCultureIgnoreCase));
@@ -1133,5 +1093,17 @@ namespace pWings
                 state = 3;
         }
         #endregion
+
+        public const double Deg2Rad = Math.PI / 180;
+        public const double Rad2Deg = 180 / Math.PI;
+
+        public static T Clamp<T>(T val, T min, T max) where T : IComparable
+        {
+            if (val.CompareTo(min) < 0) // val less than min
+                return min;
+            if (val.CompareTo(max) > 0) // val greater than max
+                return max;
+            return val;
+        }
     }
 }
