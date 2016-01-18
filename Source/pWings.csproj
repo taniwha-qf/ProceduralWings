@@ -51,9 +51,6 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfoPWings.cs" />
     <Compile Include="StaticWingGlobals.cs" />
-    <Compile Include="MathD.cs">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="WingManipulator.cs">
       <SubType>Code</SubType>
     </Compile>

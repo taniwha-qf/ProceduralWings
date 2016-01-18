@@ -90,7 +90,8 @@ namespace pWings
         private float cachedtipthicknessMod;
         private float cachedrootThicknessMod;
 
-        private bool FARactive = false;
+        private static bool assembliesChecked = false;
+        private static bool FARactive = false;
 
         public Vector3 scaleMultipleRoot;
         public Vector3 scaleMultipleTip;
@@ -160,7 +161,7 @@ namespace pWings
         // this is mostly being backported from B9 Pwings
         public int fuelSelectedTankSetup;
         public Vector4 fuelCurrentAmount;
-        public bool assemblyRFUsed, assemblyMFTUsed;
+        public static bool assemblyRFUsed, assemblyMFTUsed;
         public float fuelVolumeOld, fuelAddedCost;
         public double aeroStatVolume;
         #endregion
@@ -223,15 +224,13 @@ namespace pWings
             FuelSetToAllCounterParts();
         }
 
-        public void CalculateVolume()
+        public void CalculateFuelVolume()
         {
             if (!canBeFueled || !HighLogic.LoadedSceneIsEditor)
                 return;
             
             // volume = tip->root dist * avg thickness * avg width
-            aeroStatVolume = b_2 * modelChordLenght * (tipScaleModified.z + rootScaleModified.z) * (tipScaleModified.x + rootScaleModified.x) / 4;
-            aeroStatVolume *= 0.7 * 0.15; // fuel fudge factor * base thickness
-
+            aeroStatVolume = b_2 * modelChordLenght * 0.2 * (tipScaleModified.z + rootScaleModified.z) * (tipScaleModified.x + rootScaleModified.x) / 4;
             FuelUpdateVolume();
         }
 
@@ -271,9 +270,12 @@ namespace pWings
             if (!canBeFueled)
                 return;
 
-            if (part.Modules.Contains("ModuleFuelTanks"))
+            if (!useStockFuel)
             {
                 PartModule module = part.Modules["ModuleFuelTanks"];
+                if (module == null)
+                    return;
+
                 Type type = module.GetType();
 
                 double volumeRF = aeroStatVolume;
@@ -296,9 +298,6 @@ namespace pWings
 
                 foreach (KeyValuePair<string, WingTankResource> kvp in StaticWingGlobals.wingTankConfigurations[fuelSelectedTankSetup].resources)
                 {
-                    if (kvp.Value.unitsPerVolume <= 0) // fuel which always has a zero or negative quantity is assumed to be a mistake
-                        continue;
-
                     ConfigNode newResourceNode = new ConfigNode("RESOURCE");
                     newResourceNode.AddValue("name", kvp.Value.resource.name);
                     newResourceNode.AddValue("amount", kvp.Value.unitsPerVolume * aeroStatVolume);
@@ -514,6 +513,8 @@ namespace pWings
         // This method calculates part values such as mass, lift, drag and connection forces, as well as all intermediates.
         public void CalculateAerodynamicValues(bool doInteraction = true)
         {
+            if (!isWing && !isCtrlSrf)
+                return;
             // Calculate intemediate values
             //print(part.name + ": Calc Aero values");
             b_2 = (double)tipPosition.z - (double)Root.localPosition.z + 1.0;
@@ -532,7 +533,7 @@ namespace pWings
             ArSweepScale = 2.0 + Math.Sqrt(ArSweepScale);
             ArSweepScale = (2.0 * Math.PI) / ArSweepScale * aspectRatio;
 
-            wingMass = Clamp((double)massFudgeNumber * surfaceArea * ((ArSweepScale * 2.0) / (3.0 + ArSweepScale)) * ((1.0 + taperRatio) / 2), 0.01, double.MaxValue);
+            wingMass = Math.Max(0.01, (double)massFudgeNumber * surfaceArea * ((ArSweepScale * 2.0) / (3.0 + ArSweepScale)) * ((1.0 + taperRatio) / 2));
 
             Cd = (double)dragBaseValue / ArSweepScale * (double)dragMultiplier;
 
@@ -541,21 +542,15 @@ namespace pWings
             //print("Gather Children");
             GatherChildrenCl();
 
-            connectionForce = Math.Round(Clamp(Math.Sqrt(Cl + ChildrenCl) * (double)connectionFactor, (double)connectionMinimum, double.MaxValue), 0);
+            connectionForce = Math.Round(Math.Max(Math.Sqrt(Cl + ChildrenCl) * (double)connectionFactor, connectionMinimum), 0);
 
             // Values always set
             if (isWing)
-            {
-                wingCost = (float)wingMass * (1f + (float)ArSweepScale / 4f) * costDensity;
-                wingCost = Mathf.Round(wingCost / 5f) * 5f;
-            }
-            else if (isCtrlSrf)
-            {
-                wingCost = (float)wingMass * (1f + (float)ArSweepScale / 4f) * costDensity * (1f - modelControlSurfaceFraction);
-                wingCost += (float)wingMass * (1f + (float)ArSweepScale / 4f) * costDensityControl * modelControlSurfaceFraction;
-                wingCost = Mathf.Round(wingCost / 5f) * 5f;
-            }
+                wingCost = (float)Math.Round(wingMass * (1f + (float)ArSweepScale / 4f) * costDensity, 1);
+            else // ctrl surfaces
+                wingCost = (float)Math.Round(wingMass * (1f + (float)ArSweepScale / 4f) * (costDensity * (1f - modelControlSurfaceFraction) + costDensityControl * modelControlSurfaceFraction), 1);
 
+            // should really do something about the joint torque here, not just its limits
             part.breakingForce = Mathf.Round((float)connectionForce);
             part.breakingTorque = Mathf.Round((float)connectionForce);
 
@@ -581,11 +576,11 @@ namespace pWings
                         part.mass = stockLiftCoefficient * (1 + modelControlSurfaceFraction) * 0.1f;
                     }
                 }
+                guiCd = (float)Math.Round(Cd, 2);
+                guiCl = (float)Math.Round(Cl, 2);
+                guiWingMass = part.mass;
             }
-
-            // FAR values
-            // With reflection stuff from r4m0n
-            if (FARactive)
+            else
             {
                 if (part.Modules.Contains("FARControllableSurface"))
                 {
@@ -619,14 +614,6 @@ namespace pWings
                 if (doInteraction)
                     triggerUpdate = false;
             }
-            //print("FAR Done");
-            // Update GUI values
-            if (!FARactive)
-            {
-                guiCd = Mathf.Round((float)Cd * 100f) / 100f;
-                guiCl = Mathf.Round((float)Cl * 100f) / 100f;
-                guiWingMass = part.mass;
-            }
 
             guiMAC = (float)MAC;
             guiB_2 = (float)b_2;
@@ -639,6 +626,10 @@ namespace pWings
         }
 
         float updateTimeDelay = 0;
+        /// <summary>
+        /// Handle all the really expensive stuff once we are no longer actively modifying the wing. Doing it continuously causes lag spikes for lots of people
+        /// </summary>
+        /// <returns></returns>
         IEnumerator updateAeroDelayed()
         {
             bool running = updateTimeDelay > 0;
@@ -667,7 +658,7 @@ namespace pWings
                 part.DragCubes.Cubes.Add(DragCube);
                 part.DragCubes.ResetCubeWeights();
             }
-            CalculateVolume();
+            CalculateFuelVolume();
 
             if (HighLogic.LoadedSceneIsEditor)
                 GameEvents.onEditorShipModified.Fire(EditorLogic.fetch.ship);
@@ -922,7 +913,13 @@ namespace pWings
 
         private void Setup(bool doInteraction)
         {
-            FARactive = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("FerramAerospaceResearch", StringComparison.InvariantCultureIgnoreCase));
+            if (!assembliesChecked)
+            {
+                FARactive = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("FerramAerospaceResearch", StringComparison.InvariantCultureIgnoreCase));
+                assemblyRFUsed = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("RealFuels", StringComparison.InvariantCultureIgnoreCase));
+                assemblyMFTUsed = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("modularFuelTanks", StringComparison.InvariantCultureIgnoreCase));
+                assembliesChecked = true;
+            }
 
             Tip = part.FindModelTransform("Tip");
             Root = part.FindModelTransform("Root");
@@ -935,8 +932,7 @@ namespace pWings
             scaleMultipleTip.Set(1, 1, 1);
             scaleMultipleRoot.Set(1, 1, 1);
 
-            if (isWing || isCtrlSrf)
-                CalculateAerodynamicValues(doInteraction);
+            CalculateAerodynamicValues(doInteraction);
 
             cachedrootThicknessMod = rootThicknessMod;
             cachedtipthicknessMod = tipThicknessMod;
@@ -1058,8 +1054,10 @@ namespace pWings
                     state = 0;
                     return;
                 }
-                float scale = tipScale.x + diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
-                tipScale = Vector3.one * Math.Max(scale, -0.99f);
+                tipScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
+                tipScale.y = tipScale.x = Mathf.Max(tipScale.x, -0.99f);
+                tipScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.forward);
+                tipScale.z = Mathf.Max(tipScale.z, -0.99f);
             }
             // Root scaling
             // only if the root part is not a pWing,
