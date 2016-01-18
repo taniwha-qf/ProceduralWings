@@ -226,16 +226,10 @@ namespace pWings
         {
             if (!canBeFueled || !HighLogic.LoadedSceneIsEditor)
                 return;
-            double wingLength = b_2;
-            double tipWidth = (1 + tipScale.x) * modelChordLenght;
-            double tipThickness = (1 + tipScale.y) * 0.1;
-            double rootWidth = (1 + rootScale.x) * modelChordLenght;
-            double rootThickness = (1 + rootScale.y) * 0.1;
-
-            aeroStatVolume = 0.7 * wingLength * (tipWidth * tipThickness
-                                                + (rootWidth - tipWidth) / 2f * tipThickness
-                                                + tipWidth * (rootThickness - tipThickness) / 2f
-                                                + (rootWidth - tipWidth) / 2f * (rootThickness - tipThickness) / 2f);
+            
+            // volume = tip->root dist * avg thickness * avg width
+            aeroStatVolume = b_2 * modelChordLenght * (tipScaleModified.z + rootScaleModified.z) * (tipScaleModified.x + rootScaleModified.x) / 4;
+            aeroStatVolume *= 0.7 * 0.15; // fuel fudge factor * base thickness
 
             FuelUpdateVolume();
         }

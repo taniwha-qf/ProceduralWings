@@ -10,6 +10,9 @@ pWings_FILES := \
 	FlapToggler.cs	\
 	WingManipulator.cs	\
 	stupidMathNonsense.cs	\
+	StaticWingGlobals.cs \
+	WingTankConfiguration.cs \
+	WingTankResource \
 	Properties/AssemblyInfoPWings.cs	\
 	$e
 
