@@ -317,9 +317,9 @@ namespace pWings
 
             // Scale the tip
             tipScale.Set(
-                Mathf.Max(rootScale.x + changeTipScale.x, -1),
-                Mathf.Max(rootScale.y + changeTipScale.y, -1),
-                Mathf.Max(rootScale.z + changeTipScale.z, -1));
+                Mathf.Max(rootScale.x + changeTipScale.x, 0.01f),
+                Mathf.Max(rootScale.y + changeTipScale.y, 0.01f),
+                Mathf.Max(rootScale.z + changeTipScale.z, 0.01f));
 
             // Update part and children
             UpdateAllCopies(true);
