@@ -159,10 +159,12 @@ namespace pWings
 
         #region wing fuelling
         // this is mostly being backported from B9 Pwings
-        public int fuelSelectedTankSetup;
-        public Vector4 fuelCurrentAmount;
-        public static bool assemblyRFUsed, assemblyMFTUsed;
-        public float fuelVolumeOld, fuelAddedCost;
+
+        [KSPField(isPersistant = true)] // otherwise revert to editor does silly things
+        public int fuelSelectedTankSetup = -1;
+
+        public static bool assemblyRFUsed;
+        public static bool assemblyMFTUsed;
         public double aeroStatVolume;
         #endregion
 
@@ -218,10 +220,8 @@ namespace pWings
 
             if (fuelSelectedTankSetup >= StaticWingGlobals.wingTankConfigurations.Count)
                 fuelSelectedTankSetup = 0;
-            if (HighLogic.LoadedSceneIsFlight)
-                fuelCurrentAmount = Vector4.zero;
 
-            FuelSetToAllCounterParts();
+            FuelTankTypeChanged();
         }
 
         public void CalculateFuelVolume()
@@ -231,10 +231,10 @@ namespace pWings
             
             // volume = tip->root dist * avg thickness * avg width
             aeroStatVolume = b_2 * modelChordLenght * 0.2 * (tipScaleModified.z + rootScaleModified.z) * (tipScaleModified.x + rootScaleModified.x) / 4;
-            FuelUpdateVolume();
+            FuelVolumeChanged();
         }
 
-        public void FuelUpdateVolume()
+        public void FuelVolumeChanged()
         {
             for (int i = 0; i < part.Resources.Count; ++i)
             {
@@ -246,7 +246,7 @@ namespace pWings
             part.Resources.UpdateList();
         }
 
-        private void FuelSetToAllCounterParts()
+        private void FuelTankTypeChanged()
         {
             FuelSetUnitsFromVolume();
             for (int s = 0; s < part.symmetryCounterparts.Count; s++)
@@ -953,7 +953,11 @@ namespace pWings
             this.part.OnEditorAttach += new Callback(UpdateOnEditorAttach);
             this.part.OnEditorDetach += new Callback(UpdateOnEditorDetach);
 
-            FuelSetToAllCounterParts();
+            if (fuelSelectedTankSetup < 0)
+            {
+                fuelSelectedTankSetup = 0;
+                FuelTankTypeChanged();
+            }
         }
 
         public override void OnStart(StartState state)
