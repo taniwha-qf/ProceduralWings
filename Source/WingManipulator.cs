@@ -86,9 +86,8 @@ namespace pWings
 
         private static bool assembliesChecked = false;
         private static bool FARactive = false;
-
-        public Vector3 scaleMultipleRoot;
-        public Vector3 scaleMultipleTip;
+        public static bool RFactive;
+        public static bool MFTactive;
 
         private bool justDetached = false;
 
@@ -117,59 +116,21 @@ namespace pWings
 
         // Intermediate aerodymamic values 
         public double Cd;
-
         public double Cl;
-
         public double ChildrenCl;
-
         public double wingMass;
-
         public double connectionForce;
-
         public double MAC;
-
         public double b_2;
-
         public double midChordSweep;
-
         public double taperRatio;
-
         public double surfaceArea;
-
         public double aspectRatio;
-
         public double ArSweepScale;
-
-        #region wing fuelling
-        // this is mostly being backported from B9 Pwings
 
         [KSPField(isPersistant = true)] // otherwise revert to editor does silly things
         public int fuelSelectedTankSetup = -1;
-
-        public static bool assemblyRFUsed;
-        public static bool assemblyMFTUsed;
         public double aeroStatVolume;
-        #endregion
-
-        #region tweakables
-
-        // Get the tweakable window so we can force it to refresh.
-        // NathanKell said to grab it from DRE
-        UIPartActionWindow _myWindow = null;
-        UIPartActionWindow myWindow
-        {
-            get
-            {
-                if (_myWindow == null)
-                {
-                    foreach (UIPartActionWindow window in FindObjectsOfType(typeof(UIPartActionWindow)))
-                    {
-                        if (window.part == part) _myWindow = window;
-                    }
-                }
-                return _myWindow;
-            }
-        }
 
         #region Fuel configuration switching
         // Has to be situated here as this KSPEvent is not correctly added Part.Events otherwise
@@ -178,28 +139,17 @@ namespace pWings
         {
             if (!(canBeFueled && useStockFuel))
                 return;
-
-            ++fuelSelectedTankSetup;
-            
-
-            if (fuelSelectedTankSetup >= StaticWingGlobals.wingTankConfigurations.Count)
-                fuelSelectedTankSetup = 0;
-
+            fuelSelectedTankSetup = ++fuelSelectedTankSetup % StaticWingGlobals.wingTankConfigurations.Count;
             FuelTankTypeChanged();
         }
 
-        public void CalculateFuelVolume()
+        public void FuelUpdateVolume()
         {
             if (!canBeFueled || !HighLogic.LoadedSceneIsEditor)
                 return;
             
-            // volume = tip->root dist * avg thickness * avg width
             aeroStatVolume = b_2 * modelChordLenght * 0.2 * (tipScale.z + rootScale.z) * (tipScale.x + rootScale.x) / 4;
-            FuelVolumeChanged();
-        }
 
-        public void FuelVolumeChanged()
-        {
             for (int i = 0; i < part.Resources.Count; ++i)
             {
                 PartResource res = part.Resources[i];
@@ -210,9 +160,12 @@ namespace pWings
             part.Resources.UpdateList();
         }
 
+        /// <summary>
+        /// set resources in this tank and all symmetry counterparts
+        /// </summary>
         private void FuelTankTypeChanged()
         {
-            FuelSetUnitsFromVolume();
+            FuelSetResources();
             for (int s = 0; s < part.symmetryCounterparts.Count; s++)
             {
                 if (part.symmetryCounterparts[s] == null) // fixes nullref caused by removing mirror sym while hovering over attach location
@@ -221,7 +174,7 @@ namespace pWings
                 if (wing != null)
                 {
                     wing.fuelSelectedTankSetup = fuelSelectedTankSetup;
-                    wing.FuelSetUnitsFromVolume();
+                    wing.FuelSetResources();
                 }
             }
         }
@@ -229,9 +182,9 @@ namespace pWings
         /// <summary>
         /// takes a volume in m^3 and sets up amounts for RF/MFT
         /// </summary>
-        public void FuelSetUnitsFromVolume()
+        public void FuelSetResources()
         {
-            if (!canBeFueled)
+            if (!(canBeFueled && HighLogic.LoadedSceneIsEditor))
                 return;
 
             if (!useStockFuel)
@@ -243,7 +196,7 @@ namespace pWings
                 Type type = module.GetType();
 
                 double volumeRF = aeroStatVolume;
-                if (assemblyRFUsed)
+                if (RFactive)
                     volumeRF *= 1000;     // RF requests units in liters instead of cubic meters
                 else // assemblyMFTUsed
                     volumeRF *= 173.9;  // MFT requests volume in units
@@ -252,9 +205,6 @@ namespace pWings
             }
             else
             {
-                if (!HighLogic.LoadedSceneIsEditor) // only ever fiddle with part resources in editor
-                    return;
-
                 part.Resources.list.Clear();
                 PartResource[] partResources = part.GetComponents<PartResource>();
                 for (int i = 0; i < partResources.Length; i++)
@@ -272,20 +222,6 @@ namespace pWings
             }
         }
 
-        /// <summary>
-        /// returns cost of max amount of fuel that the tanks can carry with the current loadout
-        /// </summary>
-        /// <returns></returns>
-        private float FuelGetAddedCost()
-        {
-            float result = 0f;
-            foreach (KeyValuePair<string, WingTankResource> kvp in StaticWingGlobals.wingTankConfigurations[fuelSelectedTankSetup].resources)
-            {
-                result += kvp.Value.resource.unitCost * kvp.Value.unitsPerVolume * (float)aeroStatVolume;
-            }
-            return result;
-        }
-
         public bool canBeFueled
         {
             get
@@ -298,7 +234,7 @@ namespace pWings
         {
             get
             {
-                return !assemblyRFUsed && !assemblyMFTUsed;
+                return !RFactive && !MFTactive;
             }
         }
         #endregion
@@ -324,6 +260,8 @@ namespace pWings
             // Update part and children
             UpdateAllCopies(true);
         }
+
+        #region aerodynamics
 
         [KSPField(guiActiveEditor = false, guiName = "Coefficient of Drag", guiFormat = "F3")]
         public float guiCd;
@@ -354,10 +292,6 @@ namespace pWings
 
         [KSPField(guiActiveEditor = false, guiName = "Aspect Ratio", guiFormat = "F3")]
         public float guiAspectRatio;
-
-        #endregion
-
-        #region aerodynamics
 
         // Gather the Cl of all our children for connection strength calculations.
         public void GatherChildrenCl()
@@ -500,10 +434,13 @@ namespace pWings
                     FARtype.GetField("MidChordSweep").SetValue(FARmodule, midChordSweep);
                     FARtype.GetField("TaperRatio").SetValue(FARmodule, taperRatio);
                 }
-                if (!triggerUpdate && doInteraction)
-                    TriggerUpdateAllWings();
+                
                 if (doInteraction)
+                {
+                    if (!triggerUpdate)
+                        TriggerUpdateAllWings();
                     triggerUpdate = false;
+                }
             }
 
             guiMAC = (float)MAC;
@@ -549,7 +486,7 @@ namespace pWings
                 part.DragCubes.Cubes.Add(DragCube);
                 part.DragCubes.ResetCubeWeights();
             }
-            CalculateFuelVolume();
+            FuelUpdateVolume();
 
             if (HighLogic.LoadedSceneIsEditor)
                 GameEvents.onEditorShipModified.Fire(EditorLogic.fetch.ship);
@@ -783,8 +720,8 @@ namespace pWings
             if (!assembliesChecked)
             {
                 FARactive = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("FerramAerospaceResearch", StringComparison.InvariantCultureIgnoreCase));
-                assemblyRFUsed = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("RealFuels", StringComparison.InvariantCultureIgnoreCase));
-                assemblyMFTUsed = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("modularFuelTanks", StringComparison.InvariantCultureIgnoreCase));
+                RFactive = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("RealFuels", StringComparison.InvariantCultureIgnoreCase));
+                MFTactive = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("modularFuelTanks", StringComparison.InvariantCultureIgnoreCase));
                 assembliesChecked = true;
             }
 
@@ -795,9 +732,6 @@ namespace pWings
 
             UpdatePositions();
             SetupCollider();
-
-            scaleMultipleTip.Set(1, 1, 1);
-            scaleMultipleRoot.Set(1, 1, 1);
 
             CalculateAerodynamicValues(doInteraction);
 
