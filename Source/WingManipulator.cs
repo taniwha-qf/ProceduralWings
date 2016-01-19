@@ -317,9 +317,9 @@ namespace pWings
 
             // Scale the tip
             tipScale.Set(
-                Mathf.Max((rootScale.x + changeTipScale.x) - 1, -1),
-                Mathf.Max((rootScale.y + changeTipScale.y) - 1, -1),
-                Mathf.Max((rootScale.z + changeTipScale.z) - 1, -1));
+                Mathf.Max(rootScale.x + changeTipScale.x, -1),
+                Mathf.Max(rootScale.y + changeTipScale.y, -1),
+                Mathf.Max(rootScale.z + changeTipScale.z, -1));
 
             // Update part and children
             UpdateAllCopies(true);
@@ -408,7 +408,7 @@ namespace pWings
                 return;
             // Calculate intemediate values
             //print(part.name + ": Calc Aero values");
-            b_2 = (double)tipPosition.z - (double)Root.localPosition.z + 1.0;
+            b_2 = tipPosition.z - Root.localPosition.z + 1.0;
 
             MAC = (tipScale.x + rootScale.x) * modelChordLenght / 2.0;
 
@@ -424,22 +424,22 @@ namespace pWings
             ArSweepScale = 2.0 + Math.Sqrt(ArSweepScale);
             ArSweepScale = (2.0 * Math.PI) / ArSweepScale * aspectRatio;
 
-            wingMass = Math.Max(0.01, (double)massFudgeNumber * surfaceArea * ((ArSweepScale * 2.0) / (3.0 + ArSweepScale)) * ((1.0 + taperRatio) / 2));
+            wingMass = Math.Max(0.01, massFudgeNumber * surfaceArea * ((ArSweepScale * 2.0) / (3.0 + ArSweepScale)) * ((1.0 + taperRatio) / 2));
 
-            Cd = (double)dragBaseValue / ArSweepScale * (double)dragMultiplier;
+            Cd = dragBaseValue / ArSweepScale * dragMultiplier;
 
-            Cl = (double)liftFudgeNumber * surfaceArea * ArSweepScale;
+            Cl = liftFudgeNumber * surfaceArea * ArSweepScale;
 
             //print("Gather Children");
             GatherChildrenCl();
 
-            connectionForce = Math.Round(Math.Max(Math.Sqrt(Cl + ChildrenCl) * (double)connectionFactor, connectionMinimum), 0);
+            connectionForce = Math.Round(Math.Max(Math.Sqrt(Cl + ChildrenCl) * connectionFactor, connectionMinimum), 0);
 
             // Values always set
             if (isWing)
-                wingCost = (float)Math.Round(wingMass * (1f + (float)ArSweepScale / 4f) * costDensity, 1);
+                wingCost = (float)Math.Round(wingMass * (1f + ArSweepScale / 4f) * costDensity, 1);
             else // ctrl surfaces
-                wingCost = (float)Math.Round(wingMass * (1f + (float)ArSweepScale / 4f) * (costDensity * (1f - modelControlSurfaceFraction) + costDensityControl * modelControlSurfaceFraction), 1);
+                wingCost = (float)Math.Round(wingMass * (1f + ArSweepScale / 4f) * (costDensity * (1f - modelControlSurfaceFraction) + costDensityControl * modelControlSurfaceFraction), 1);
 
             // should really do something about the joint torque here, not just its limits
             part.breakingForce = Mathf.Round((float)connectionForce);
@@ -663,7 +663,7 @@ namespace pWings
                 rootPosition.x = 0f;
                 rootPosition.y = 0f;
 
-                Root.localPosition = -tipPosition + -TipSpawnOffset;
+                Root.localPosition = -(tipPosition + TipSpawnOffset);
             }
         }
 
