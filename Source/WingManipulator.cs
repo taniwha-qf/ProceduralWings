@@ -84,12 +84,6 @@ namespace pWings
         public Transform wingTransform;
         public Transform SMRcontainer;
 
-        private float updatedRootScaleZ;
-        private float updatedTipScaleZ;
-
-        private float cachedtipthicknessMod;
-        private float cachedrootThicknessMod;
-
         private static bool assembliesChecked = false;
         private static bool FARactive = false;
 
@@ -99,20 +93,9 @@ namespace pWings
         private bool justDetached = false;
 
         // Internal Fields
-        [KSPField(guiActiveEditor = true, guiName = "Root Thickness", isPersistant = true, guiUnits = "%"), UI_FloatRange(minValue = 0.1f, maxValue = 5f, stepIncrement = 0.02f)]
-        public float rootThicknessMod = 1f;
-
-        [KSPField(guiActiveEditor = true, guiName = "Tip Thickness", isPersistant = true, guiUnits = "%"), UI_FloatRange(minValue = 0.1f, maxValue = 5f, stepIncrement = 0.02f)]
-        public float tipThicknessMod = 1f;
-
-        [KSPField]
-        public Vector3 tipScaleModified;
-
-        [KSPField]
-        public Vector3 rootScaleModified;
 
         [KSPField(isPersistant = true)]
-        public Vector3 tipScale;
+        public Vector3 tipScale = Vector3.one;
 
         [KSPField(isPersistant = true)]
         public Vector3 tipPosition = Vector3.zero;
@@ -121,7 +104,7 @@ namespace pWings
         public Vector3 rootPosition = Vector3.zero;
 
         [KSPField(isPersistant = true)]
-        public Vector3 rootScale;
+        public Vector3 rootScale = Vector3.one;
 
         [KSPField(isPersistant = true)]
         public bool IgnoreSnapping = false;
@@ -188,25 +171,6 @@ namespace pWings
             }
         }
 
-        // Toggle relative thickness scaling
-        [KSPEvent(guiName = "Relative Thickness Scaling")]
-        public void ThicknessScalingToggleEvent()
-        {
-            if (IsAttached &&
-                this.part.parent != null)
-            {
-                relativeThicknessScaling = !relativeThicknessScaling;
-                SetThicknessScalingEventName();
-
-                // Update part and children
-                UpdateAllCopies(true);
-
-                // Force tweakable window to refresh
-                if (myWindow != null)
-                    myWindow.displayDirty = true;
-            }
-        }
-
         #region Fuel configuration switching
         // Has to be situated here as this KSPEvent is not correctly added Part.Events otherwise
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next configuration", active = true)]
@@ -230,7 +194,7 @@ namespace pWings
                 return;
             
             // volume = tip->root dist * avg thickness * avg width
-            aeroStatVolume = b_2 * modelChordLenght * 0.2 * (tipScaleModified.z + rootScaleModified.z) * (tipScaleModified.x + rootScaleModified.x) / 4;
+            aeroStatVolume = b_2 * modelChordLenght * 0.2 * (tipScale.z + rootScale.z) * (tipScale.x + rootScale.x) / 4;
             FuelVolumeChanged();
         }
 
@@ -339,99 +303,26 @@ namespace pWings
         }
         #endregion
 
-        public void SetThicknessScalingEventName()
-        {
-            if (relativeThicknessScaling)
-                Events["ThicknessScalingToggleEvent"].guiName = "Relative Thickness Scaling";
-            else
-                Events["ThicknessScalingToggleEvent"].guiName = "Absolute Thickness Scaling";
-        }
-        public void SetThicknessScalingEventState()
-        {
-            if (IsAttached &&
-                this.part.parent != null &&
-                (!this.part.parent.Modules.Contains("WingManipulator") ||
-                IgnoreSnapping ||
-                doNotParticipateInParentSnapping))
-                Events["ThicknessScalingToggleEvent"].guiActiveEditor = true;
-            else
-                Events["ThicknessScalingToggleEvent"].guiActiveEditor = false;
-        }
-        public void SetThicknessScalingTypeToRoot()
-        {
-            // If we're snapping, match relative thickness scaling with root
-            if (this.part.parent != null &&
-                this.part.parent.Modules.Contains("WingManipulator") &&
-                !IgnoreSnapping &&
-                !doNotParticipateInParentSnapping)
-            {
-                relativeThicknessScaling = this.part.parent.Modules.OfType<WingManipulator>().FirstOrDefault().relativeThicknessScaling;
-
-                // Set relative scaling event name
-                SetThicknessScalingEventName();
-            }
-        }
-
-        // Toggle wing data display
-        public bool showWingData = false;
-        [KSPEvent(guiActiveEditor = true, guiName = "Show Wing Data")]
-        public void InfoToggleEvent()
-        {
-            if (IsAttached &&
-                this.part.parent != null)
-            {
-                showWingData = !showWingData;
-                if (showWingData)
-                    Events["InfoToggleEvent"].guiName = "Hide Wing Data";
-                else
-                    Events["InfoToggleEvent"].guiName = "Show Wing Data";
-
-                // If FAR|NEAR arent present, toggle Cl/Cd
-                if (!FARactive)
-                {
-                    Fields["guiCd"].guiActiveEditor = showWingData;
-                    Fields["guiCl"].guiActiveEditor = showWingData;
-                }
-
-                // If FAR|NEAR are not present, or its a version without wing mass calculations, toggle wing mass
-                if (!FARactive)
-                    Fields["guiWingMass"].guiActive = showWingData;
-
-                // Toggle the rest of the info values
-                Fields["wingCost"].guiActiveEditor = showWingData;
-                Fields["guiMAC"].guiActiveEditor = showWingData;
-                Fields["guiB_2"].guiActiveEditor = showWingData;
-                Fields["guiMidChordSweep"].guiActiveEditor = showWingData;
-                Fields["guiTaperRatio"].guiActiveEditor = showWingData;
-                Fields["guiSurfaceArea"].guiActiveEditor = showWingData;
-                Fields["guiAspectRatio"].guiActiveEditor = showWingData;
-
-                // Force tweakable window to refresh
-                if (myWindow != null)
-                    myWindow.displayDirty = true;
-            }
-        }
-
         [KSPEvent(guiName = "Match Taper Ratio")]
         public void MatchTaperEvent()
         {
             // Check for a valid parent
-            if (IsAttached &&
-                this.part.parent != null &&
-                this.part.parent.Modules.Contains("WingManipulator"))
-            {
                 // Get parents taper
-                float parentTaper = (float)this.part.parent.Modules.OfType<WingManipulator>().FirstOrDefault().taperRatio;
+            WingManipulator parentWing = part.parent.Modules.OfType<WingManipulator>().FirstOrDefault();
+            if (parentWing == null)
+                return;
+            Vector3 changeTipScale = b_2 / parentWing.b_2 * new Vector3d(parentWing.tipScale.x - parentWing.rootScale.x
+                                                                    , parentWing.tipScale.y - parentWing.rootScale.y
+                                                                    , parentWing.tipScale.z - parentWing.rootScale.z);
 
-                // Scale the tip
-                tipScale.Set(
-                    Mathf.Clamp(((rootScale.x + 1) * parentTaper) - 1, -1, float.MaxValue),
-                    Mathf.Clamp(((rootScale.y + 1) * parentTaper) - 1, -1, float.MaxValue),
-                    tipScale.z);
+            // Scale the tip
+            tipScale.Set(
+                Mathf.Max((rootScale.x + changeTipScale.x) - 1, -1),
+                Mathf.Max((rootScale.y + changeTipScale.y) - 1, -1),
+                Mathf.Max((rootScale.z + changeTipScale.z) - 1, -1));
 
-                // Update part and children
-                UpdateAllCopies(true);
-            }
+            // Update part and children
+            UpdateAllCopies(true);
         }
 
         [KSPField(guiActiveEditor = false, guiName = "Coefficient of Drag", guiFormat = "F3")]
@@ -519,11 +410,11 @@ namespace pWings
             //print(part.name + ": Calc Aero values");
             b_2 = (double)tipPosition.z - (double)Root.localPosition.z + 1.0;
 
-            MAC = ((double)tipScale.x + (double)rootScale.x + 2.0) * (double)modelChordLenght / 2.0;
+            MAC = (tipScale.x + rootScale.x) * modelChordLenght / 2.0;
 
-            midChordSweep = (Rad2Deg * Math.Atan(((double)Root.localPosition.x - (double)tipPosition.x) / b_2));
+            midChordSweep = (Rad2Deg * Math.Atan((Root.localPosition.x - tipPosition.x) / b_2));
 
-            taperRatio = ((double)tipScale.x + 1.0) / ((double)rootScale.x + 1.0);
+            taperRatio = tipScale.x / rootScale.x;
 
             surfaceArea = MAC * b_2;
 
@@ -674,10 +565,8 @@ namespace pWings
         {
             if (Input.GetKeyDown(KeyCode.O))
             {
-                print("updatedRootScaleZ " + updatedRootScaleZ);
-                print("updatedTipScaleZ " + updatedTipScaleZ);
-                print("tipScaleModified " + tipScaleModified);
-                print("rootScaleModified " + rootScaleModified);
+                print("tipScaleModified " + tipScale);
+                print("rootScaleModified " + rootScale);
                 print("isControlSurface " + isCtrlSrf);
                 print("DoNotParticipateInParentSnapping " + doNotParticipateInParentSnapping);
                 print("IgnoreSnapping " + IgnoreSnapping);
@@ -744,27 +633,11 @@ namespace pWings
 
         public void UpdatePositions()
         {
-            cachedrootThicknessMod = rootThicknessMod;
-            cachedtipthicknessMod = tipThicknessMod;
-
             // If we're snapping, match relative thickness scaling with root
-            SetThicknessScalingTypeToRoot();
-            if (relativeThicknessScaling)
-            {
-                updatedRootScaleZ = rootThicknessMod * (rootScale.z + 1f);
-                updatedTipScaleZ = tipThicknessMod * (tipScale.z + 1f);
-            }
-            else
-            {
-                updatedRootScaleZ = rootThicknessMod;
-                updatedTipScaleZ = tipThicknessMod;
-            }
+            //SetThicknessScalingTypeToRoot();
 
-            tipScaleModified = new Vector3(tipScale.x + 1f, tipScale.y + 1f, updatedTipScaleZ);
-            rootScaleModified = new Vector3(rootScale.x + 1f, rootScale.y + 1f, updatedRootScaleZ);
-
-            Tip.localScale = tipScaleModified;
-            Root.localScale = rootScaleModified;
+            Tip.localScale = tipScale;
+            Root.localScale = rootScale;
 
             Tip.localPosition = tipPosition + TipSpawnOffset;
 
@@ -774,15 +647,9 @@ namespace pWings
                 !IgnoreSnapping &&
                 !doNotParticipateInParentSnapping)
             {
-                var Parent = this.part.parent.Modules.OfType<WingManipulator>().FirstOrDefault();
-                if (this.part.transform.position != Parent.Tip.position)
-                {
-                    this.part.transform.position = Parent.Tip.position;
-                }
-                if (rootScale != Parent.tipScale)
-                    rootScale = Parent.tipScale;
-                if (rootThicknessMod != Parent.tipThicknessMod)
-                    rootThicknessMod = Parent.tipThicknessMod;
+                WingManipulator Parent = part.parent.Modules.OfType<WingManipulator>().FirstOrDefault();
+                part.transform.position = Parent.Tip.position + 0.1f * Parent.Tip.right; // set the new part inward just a little bit
+                rootScale = Parent.tipScale;
             }
 
             if (symmetricMovement == false)
@@ -820,7 +687,7 @@ namespace pWings
                 clone.tipPosition = tipPosition;
 
                 clone.relativeThicknessScaling = relativeThicknessScaling;
-                clone.SetThicknessScalingEventName();
+                //clone.SetThicknessScalingEventName();
 
                 clone.UpdatePositions();
                 clone.SetupCollider();
@@ -869,7 +736,7 @@ namespace pWings
             }
 
             // If we're snapping, match relative thickness scaling type with root
-            SetThicknessScalingTypeToRoot();
+            //SetThicknessScalingTypeToRoot();
 
             // if snap is not ignored, lets update our dimensions.
             if (this.part.parent != null &&
@@ -887,7 +754,7 @@ namespace pWings
                 CalculateAerodynamicValues();
 
             // Enable relative scaling event
-            SetThicknessScalingEventState();
+            //SetThicknessScalingEventState();
         }
 
         public void UpdateOnEditorDetach()
@@ -904,7 +771,7 @@ namespace pWings
             Events["MatchTaperEvent"].guiActiveEditor = false;
 
             // Disable relative scaling event
-            SetThicknessScalingEventState();
+            //SetThicknessScalingEventState();
         }
 
         #endregion
@@ -934,9 +801,6 @@ namespace pWings
 
             CalculateAerodynamicValues(doInteraction);
 
-            cachedrootThicknessMod = rootThicknessMod;
-            cachedtipthicknessMod = tipThicknessMod;
-
             // Enable root-matching events
             if (IsAttached &&
                 this.part.parent != null &&
@@ -946,9 +810,9 @@ namespace pWings
             }
 
             // Set active state of relative scaling event
-            SetThicknessScalingEventState();
+            //SetThicknessScalingEventState();
             // Set relative scaling event name
-            SetThicknessScalingEventName();
+            //SetThicknessScalingEventName();
 
             this.part.OnEditorAttach += new Callback(UpdateOnEditorAttach);
             this.part.OnEditorDetach += new Callback(UpdateOnEditorDetach);
@@ -994,19 +858,6 @@ namespace pWings
 
                 // And set this to false so we only do it once.
                 justDetached = false;
-            }
-
-            // Check if the root's relative thickness scaling has changed if applicable
-            var cachedRelativeThicknessScaling = relativeThicknessScaling;
-            SetThicknessScalingTypeToRoot();
-
-            // Check if thickness mods have changed, and if so update us and any children
-            if (IsAttached &&
-                (tipThicknessMod != cachedtipthicknessMod ||
-                rootThicknessMod != cachedrootThicknessMod ||
-                cachedRelativeThicknessScaling != relativeThicknessScaling))
-            {
-                UpdateAllCopies(true);
             }
             if (triggerUpdate)
                 CalculateAerodynamicValues();
@@ -1059,9 +910,9 @@ namespace pWings
                     return;
                 }
                 tipScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
-                tipScale.y = tipScale.x = Mathf.Max(tipScale.x, -0.99f);
+                tipScale.y = tipScale.x = Mathf.Max(tipScale.x, 0.01f);
                 tipScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.forward);
-                tipScale.z = Mathf.Max(tipScale.z, -0.99f);
+                tipScale.z = Mathf.Max(tipScale.z, 0.01f);
             }
             // Root scaling
             // only if the root part is not a pWing,
@@ -1074,8 +925,10 @@ namespace pWings
                     state = 0;
                     return;
                 }
-                float scale = rootScale.x + diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
-                rootScale = Vector3.one * Math.Max(scale, -0.99f);
+                rootScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
+                rootScale.y = rootScale.x = Mathf.Max(rootScale.x, 0.01f);
+                rootScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.forward);
+                rootScale.z = Mathf.Max(rootScale.z, 0.01f);
             }
             UpdateAllCopies(true);
         }
