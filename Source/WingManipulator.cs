@@ -70,7 +70,7 @@ namespace pWings
         public static bool loadedConfig;
         public static KeyCode keyTranslation = KeyCode.G;
         public static KeyCode keyTipScale = KeyCode.T;
-        public static KeyCode keyRootScale = KeyCode.R;
+        public static KeyCode keyRootScale = KeyCode.B; // was r, stock uses r now though
         public static float moveSpeed = 5.0f;
         public static float scaleSpeed = 0.25f;
 
