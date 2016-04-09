@@ -11,7 +11,7 @@ namespace pWings
     {
         // PartModule Dimensions
         [KSPField]
-        public float modelChordLenght = 2f;
+        public float modelChordLength = 2f;
 
         [KSPField]
         public float modelControlSurfaceFraction = 1f;
@@ -148,7 +148,7 @@ namespace pWings
             if (!canBeFueled || !HighLogic.LoadedSceneIsEditor)
                 return;
             
-            aeroStatVolume = b_2 * modelChordLenght * 0.2 * (tipScale.z + rootScale.z) * (tipScale.x + rootScale.x) / 4;
+            aeroStatVolume = b_2 * modelChordLength * 0.2 * (tipScale.z + rootScale.z) * (tipScale.x + rootScale.x) / 4;
 
             for (int i = 0; i < part.Resources.Count; ++i)
             {
@@ -247,9 +247,7 @@ namespace pWings
             WingManipulator parentWing = part.parent.Modules.OfType<WingManipulator>().FirstOrDefault();
             if (parentWing == null)
                 return;
-            Vector3 changeTipScale = b_2 / parentWing.b_2 * new Vector3d(parentWing.tipScale.x - parentWing.rootScale.x
-                                                                    , parentWing.tipScale.y - parentWing.rootScale.y
-                                                                    , parentWing.tipScale.z - parentWing.rootScale.z);
+            Vector3 changeTipScale = (float)(b_2 / parentWing.b_2) * (parentWing.tipScale - parentWing.rootScale);
 
             // Scale the tip
             tipScale.Set(
@@ -344,7 +342,7 @@ namespace pWings
             //print(part.name + ": Calc Aero values");
             b_2 = tipPosition.z - Root.localPosition.z + 1.0;
 
-            MAC = (tipScale.x + rootScale.x) * modelChordLenght / 2.0;
+            MAC = (tipScale.x + rootScale.x) * modelChordLength / 2.0;
 
             midChordSweep = (Rad2Deg * Math.Atan((Root.localPosition.x - tipPosition.x) / b_2));
 
@@ -799,12 +797,13 @@ namespace pWings
 
         Vector3 lastMousePos;
         int state = 0; // 0 == nothing, 1 == translate, 2 == tipScale, 3 == rootScale
+        public static Camera editorCam;
         public void DeformWing()
         {
             if (this.part.parent == null || !IsAttached || state == 0)
                 return;
 
-            float depth = EditorCamera.Instance.camera.WorldToScreenPoint(state != 3 ? Tip.position : Root.position).z; // distance of tip transform from camera
+            float depth = EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).WorldToScreenPoint(state != 3 ? Tip.position : Root.position).z; // distance of tip transform from camera
             Vector3 diff = (state == 1 ? moveSpeed : scaleSpeed * 20) * depth * (Input.mousePosition - lastMousePos) / 4500;
             lastMousePos = Input.mousePosition;
 
@@ -819,18 +818,18 @@ namespace pWings
 
                 if (symmetricMovement == true)
                 { // Symmetric movement (for wing edge control surfaces)
-                    tipPosition.z -= diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.right) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.right);
+                    tipPosition.z -= diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, part.transform.right) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, part.transform.right);
                     tipPosition.z = Mathf.Max(tipPosition.z, modelMinimumSpan / 2 - TipSpawnOffset.z); // Clamp z to modelMinimumSpan/2 to prevent turning the model inside-out
                     tipPosition.x = tipPosition.y = 0;
 
-                    rootPosition.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.right) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.right);
+                    rootPosition.z += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, part.transform.right) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, part.transform.right);
                     rootPosition.z = Mathf.Max(rootPosition.z, modelMinimumSpan / 2 - TipSpawnOffset.z); // Clamp z to modelMinimumSpan/2 to prevent turning the model inside-out
                     rootPosition.x = rootPosition.y = 0;
                 }
                 else
                 { // Normal, only tip moves
-                    tipPosition.x += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.up);
-                    tipPosition.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.right) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.right);
+                    tipPosition.x += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, part.transform.up);
+                    tipPosition.z += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, part.transform.right) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, part.transform.right);
                     tipPosition.z = Mathf.Max(tipPosition.z, modelMinimumSpan - TipSpawnOffset.z); // Clamp z to modelMinimumSpan to prevent turning the model inside-out
                     tipPosition.y = 0;
                 }
@@ -843,9 +842,9 @@ namespace pWings
                     state = 0;
                     return;
                 }
-                tipScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
+                tipScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, -part.transform.up);
                 tipScale.y = tipScale.x = Mathf.Max(tipScale.x, 0.01f);
-                tipScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.forward);
+                tipScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, part.transform.forward);
                 tipScale.z = Mathf.Max(tipScale.z, 0.01f);
             }
             // Root scaling
@@ -859,9 +858,9 @@ namespace pWings
                     state = 0;
                     return;
                 }
-                rootScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, -part.transform.up);
+                rootScale.x += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, -part.transform.up) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, -part.transform.up);
                 rootScale.y = rootScale.x = Mathf.Max(rootScale.x, 0.01f);
-                rootScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.camera.transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.camera.transform.up, part.transform.forward);
+                rootScale.z += diff.x * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.right, part.transform.forward) + diff.y * Vector3.Dot(EditorCamera.Instance.GetComponentCached<Camera>(ref editorCam).transform.up, part.transform.forward);
                 rootScale.z = Mathf.Max(rootScale.z, 0.01f);
             }
             UpdateAllCopies(true);

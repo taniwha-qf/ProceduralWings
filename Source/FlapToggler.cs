@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace DYJlibrary
 {
@@ -10,31 +6,26 @@ namespace DYJlibrary
     {
         [KSPField]
         public string flapTransform = "obj_ctrlSrf";
-        [KSPField(guiActiveEditor = true, guiName = "Toggle Flaps", isPersistant = true), UI_Toggle()]
+
+        [KSPField(isPersistant = true)]
         public bool FlapActive = true;
-        private bool alreadyActive = true;
+
         public Transform Flap;
+        Renderer cachedRenderer;
 
         public override void OnStart(PartModule.StartState state)
         {
             Flap = part.FindModelTransform(flapTransform);
+            cachedRenderer = Flap.gameObject.GetComponent<Renderer>();
+            if (FlapActive != false)
+                ToggleFlaps();
         }
 
-        public void Update()
+        [KSPEvent(active =true, guiActive =true, guiActiveEditor =true,guiName ="Toggle Flaps")]
+        public void ToggleFlaps()
         {
-
-            print("Active " + FlapActive);
-            if (FlapActive == true && alreadyActive == false)
-            {
-                Flap.gameObject.renderer.enabled = true;
-                alreadyActive = true;
-            }
-
-            if (FlapActive == false && alreadyActive == true)
-            {
-                Flap.gameObject.renderer.enabled = false;
-                alreadyActive = false;
-            }
+            cachedRenderer.enabled = !FlapActive;
+            FlapActive = !FlapActive;
         }
     }
 }    
