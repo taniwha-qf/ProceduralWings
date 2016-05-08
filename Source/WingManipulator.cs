@@ -7,7 +7,7 @@ using System.Reflection;
 
 namespace pWings
 {
-    public class WingManipulator : PartModule, IPartCostModifier, IPartSizeModifier, IPartMassModifier
+    public class WingManipulator : PartModule //, IPartCostModifier, IPartSizeModifier, IPartMassModifier
     {
         // PartModule Dimensions
         [KSPField]
@@ -327,7 +327,7 @@ namespace pWings
                 plist = part.vessel.Parts;
             for (int i = 0; i < plist.Count; i++)
             {
-                WingManipulator wing = plist[i].Modules.OfType<WingManipulator>().FirstOrDefault();
+                WingManipulator wing = plist[i].Modules.GetModule<WingManipulator>();
                 if (wing != null)
                     wing.triggerUpdate = true;
             }
@@ -578,11 +578,11 @@ namespace pWings
 
             if (IsAttached &&
                 this.part.parent != null &&
-                this.part.parent.Modules.Contains("WingManipulator") &&
+                this.part.parent.Modules.Contains<WingManipulator>() &&
                 !IgnoreSnapping &&
                 !doNotParticipateInParentSnapping)
             {
-                WingManipulator Parent = part.parent.Modules.OfType<WingManipulator>().FirstOrDefault();
+                WingManipulator Parent = part.parent.Modules.GetModule<WingManipulator>();
                 part.transform.position = Parent.Tip.position + 0.1f * Parent.Tip.right; // set the new part inward just a little bit
                 rootScale = Parent.tipScale;
             }
@@ -675,7 +675,7 @@ namespace pWings
 
             // if snap is not ignored, lets update our dimensions.
             if (this.part.parent != null &&
-                this.part.parent.Modules.Contains("WingManipulator") &&
+                this.part.parent.Modules.Contains<WingManipulator>() &&
                 !IgnoreSnapping &&
                 !doNotParticipateInParentSnapping)
             {
@@ -695,8 +695,8 @@ namespace pWings
         public void UpdateOnEditorDetach()
         {
             // If the root is not null and is a pWing, set its justDetached so it knows to check itself next Update
-            if (this.part.parent != null && this.part.parent.Modules.Contains("WingManipulator"))
-                this.part.parent.Modules.OfType<WingManipulator>().FirstOrDefault().justDetached = true;
+            if (part.parent != null && part.parent.Modules.Contains<WingManipulator>())
+                part.parent.Modules.GetModule<WingManipulator>().justDetached = true;
 
             // We are not attached.
             IsAttached = false;
@@ -736,7 +736,7 @@ namespace pWings
             // Enable root-matching events
             if (IsAttached &&
                 this.part.parent != null &&
-                this.part.parent.Modules.Contains("WingManipulator"))
+                this.part.parent.Modules.Contains<WingManipulator>())
             {
                 Events["MatchTaperEvent"].guiActiveEditor = true;
             }
@@ -759,7 +759,6 @@ namespace pWings
         public override void OnStart(StartState state)
         {
             base.OnStart(state);
-
             Setup(true);
         }
 
@@ -851,7 +850,7 @@ namespace pWings
             // only if the root part is not a pWing,
             // or we were told to ignore snapping,
             // or the part is set to ignore snapping (wing edge control surfaces, tipically)
-            else if (state == 3 && (!this.part.parent.Modules.Contains("WingManipulator") || IgnoreSnapping || doNotParticipateInParentSnapping))
+            else if (state == 3 && (!this.part.parent.Modules.Contains<WingManipulator>() || IgnoreSnapping || doNotParticipateInParentSnapping))
             {
                 if (!Input.GetKey(keyRootScale))
                 {
