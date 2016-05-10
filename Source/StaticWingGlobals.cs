@@ -12,10 +12,13 @@ namespace pWings
 
         public void Start()
         {
-            ConfigNode[] nodes = GameDatabase.Instance.GetConfigNodes("ProceduralWingFuelSetups").FirstOrDefault().GetNodes("FuelSet");
-            for (int i = 0; i < nodes.Length; ++i )
-                wingTankConfigurations.Add(new WingTankConfiguration(nodes[i]));
-
+            ConfigNode node = GameDatabase.Instance.GetConfigNodes("ProceduralWingFuelSetups").FirstOrDefault();
+            if (node != null)
+            {
+                ConfigNode[] nodes = node.GetNodes("FuelSet");
+                for (int i = 0; i < nodes.Length; ++i)
+                    wingTankConfigurations.Add(new WingTankConfiguration(nodes[i]));
+            }
             LoadConfiguration();
         }
 
