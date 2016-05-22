@@ -133,6 +133,31 @@ namespace pWings
         public double aeroStatVolume;
 
         #region Fuel configuration switching
+
+        UIPartActionWindow _myWindow = null;
+        UIPartActionWindow myWindow
+        {
+            get
+            {
+                if (_myWindow == null)
+                {
+                    UIPartActionWindow[] windows = (UIPartActionWindow[])FindObjectsOfType(typeof(UIPartActionWindow));
+                    for (int i = 0; i < windows.Length; ++i)
+                    {
+                        if (windows[i].part == part)
+                            _myWindow = windows[i];
+                    }
+                }
+                return _myWindow;
+            }
+        }
+
+        private void UpdateWindow()
+        {
+            if (myWindow != null)
+                myWindow.displayDirty = true;
+        }
+
         // Has to be situated here as this KSPEvent is not correctly added Part.Events otherwise
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next configuration", active = true)]
         public void NextConfiguration()
@@ -150,14 +175,20 @@ namespace pWings
             
             aeroStatVolume = b_2 * modelChordLength * 0.2 * (tipScale.z + rootScale.z) * (tipScale.x + rootScale.x) / 4;
 
-            for (int i = 0; i < part.Resources.Count; ++i)
+            if (useStockFuel)
             {
-                PartResource res = part.Resources[i];
-                double fillPct = res.maxAmount > 0 ? res.amount / res.maxAmount : 1.0;
-                res.maxAmount = StaticWingGlobals.wingTankConfigurations[fuelSelectedTankSetup].resources[res.resourceName].unitsPerVolume * aeroStatVolume;
-                res.amount = res.maxAmount * fillPct;
+                for (int i = 0; i < part.Resources.Count; ++i)
+                {
+                    PartResource res = part.Resources[i];
+                    double fillPct = res.maxAmount > 0 ? res.amount / res.maxAmount : 1.0;
+                    res.maxAmount = aeroStatVolume * StaticWingGlobals.wingTankConfigurations[fuelSelectedTankSetup].resources[res.resourceName].unitsPerVolume;
+                    res.amount = res.maxAmount * fillPct;
+                }
+                part.Resources.UpdateList();
+                UpdateWindow();
             }
-            part.Resources.UpdateList();
+            else
+                FuelSetResources(); // for MFT/RF.
         }
 
         /// <summary>
@@ -177,6 +208,10 @@ namespace pWings
                     wing.FuelSetResources();
                 }
             }
+
+            UpdateWindow();
+            if (HighLogic.LoadedSceneIsEditor)
+                GameEvents.onEditorShipModified.Fire(EditorLogic.fetch.ship);
         }
 
         /// <summary>
