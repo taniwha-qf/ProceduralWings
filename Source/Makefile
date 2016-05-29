@@ -7,16 +7,15 @@ PLUGINDIR	:= ${pWingsGAMEDATA}/Plugins
 TARGETS		:= pWings.dll
 
 pWings_FILES := \
-	FlapToggler.cs	\
-	WingManipulator.cs	\
+	FlapToggler.cs \
 	StaticWingGlobals.cs \
+	WingManipulator.cs \
 	WingTankConfiguration.cs \
-	WingTankResource \
-	Properties/AssemblyInfoPWings.cs	\
+	WingTankResource.cs \
 	$e
 
 RESGEN2		:= resgen2
-GMCS		:= gmcs
+GMCS		:= mcs
 GMCSFLAGS	:= -optimize -warnaserror
 GIT			:= git
 TAR			:= tar
@@ -41,7 +40,9 @@ info:
 
 pWings.dll: ${pWings_FILES}
 	${GMCS} ${GMCSFLAGS} -t:library -lib:${MANAGED} \
-		-r:Assembly-CSharp,Assembly-CSharp-firstpass,UnityEngine \
+		-r:Assembly-CSharp,Assembly-CSharp-firstpass \
+		-r:UnityEngine,UnityEngine.UI \
+		-r:KSPUtil \
 		-out:$@ $^
 
 clean:
